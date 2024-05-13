@@ -1,8 +1,8 @@
-import React from "react";
-import ColorPalette from "./Components/ColorPalette";
-import useColorPalettes from "../../services/useColorPalettes";
+import { useVirtual } from "@tanstack/react-virtual";
+import React, { useCallback, useRef } from "react";
 import ScrollLoader from "../../loaders/ScrollLoader";
-import { useRef, useCallback } from "react";
+import useColorPalettes from "../../services/useColorPalettes";
+import ColorPalette from "./Components/ColorPalette";
 import PaletteContextProvider from "./cotext/paletteContext";
 
 export default function Explore() {
@@ -34,24 +34,61 @@ export default function Explore() {
     [isFetchingNextPage, fetchNextPage, hasNextPage]
   );
 
+  const rowVirtualizer = useVirtual({
+    size: paletteData?.pages.flatMap((page) => page.palettes).length,
+    parentRef: React.useRef(null),
+    estimateSize: React.useCallback(() => 200, []),
+  });
+
   return (
     <PaletteContextProvider lastPaletteReference={lastPaletteRef}>
       <section className="flex min-h-screen flex-col items-center">
         {isLoading && <Loader />}
-        <div className="w-fit mb-auto px-4 py-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 justify-items-center gap-y-6 gap-x-10">
-          {isFetched &&
-            paletteData?.pages.map(({ palettes }) => {
-              return palettes.map((colors, index) => {
-                const uniqueColors = [...new Set(colors)];
-                if (uniqueColors.length >= 2)
-                  return (
-                    <ColorPalette
-                      colors={uniqueColors.slice(0, 7)}
-                      key={index}
-                    />
-                  );
-              });
-            })}
+        <div
+          ref={rowVirtualizer.virtualHorizontalRef}
+          className="w-fit mb-auto px-4 py-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 justify-items-center gap-y-6 gap-x-10"
+          style={{
+            height: `${rowVirtualizer.totalSize}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              height: `${rowVirtualizer.totalSize}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.virtualItems.map((virtualRow) => (
+              <div
+                key={virtualRow.index}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {isFetched &&
+                  paletteData?.pages
+                    .flatMap((page) => page.palettes)
+                    .slice(virtualRow.index, virtualRow.index + 1)
+                    .map((colors, index) => {
+                      const uniqueColors = [...new Set(colors)];
+                      if (uniqueColors.length >= 2)
+                        return (
+                          <ColorPalette
+                            colors={uniqueColors.slice(0, 7)}
+                            key={index}
+                          />
+                        );
+                    })}
+              </div>
+            ))}
+          </div>
         </div>
         {hasNextPage && <Loader />}
       </section>
